@@ -1,0 +1,10 @@
+Simulation
+--------------
+Make code for selecting a given node
+
+DQN Model 
+-----------
+Figure out how to pass input data (location of nodes, selected node, location and size of barrier arcs)
+Figure out how to integrate control of coeffecients and transmit power
+Figure out how to pass results (gain at selected node, gain at other nodes, total power used) back to agent
+Figure out how to calculate reward - see DQNAgent.m for psuedocode 
