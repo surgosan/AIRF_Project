@@ -1,47 +1,44 @@
 %% File: trainBeamformingAgent.m
-% Script to train a DQN agent for beamforming
 
-% Ensure element pattern MAT-file exists
-if ~isfile('AAAMain.mat')
-    run(which('AAAMain.m'));  % populates `element`
-    save('AAAMain.mat','element');
+if ~isfile("AAAMain.mat")
+    AAAMain;
+    save("AAAMain.mat","element")
+else
+    load("AAAMain.mat","element")
 end
-% Load only the pattern data
-data = load('AAAMain.mat','element');
-pattern = data.element;
 
-env = BeamformingEnv(pattern);
+env = BeamformingEnv(element);
 obsInfo = getObservationInfo(env);
 actInfo = getActionInfo(env);
 
-% Build Q-network and Q-value representation
-criticNet = buildCriticNetwork(obsInfo,actInfo);
-qRepresentation = rlQValueRepresentation(criticNet, obsInfo, actInfo, ...
-    'ObservationInputNames',{'state'}, 'OutputName','qOut');
+critic = buildCriticNetwork(obsInfo, actInfo);
 
-% Epsilon-greedy exploration options
-egOpts = rl.option.EpsilonGreedyExploration('Epsilon',1.0, ...
-    'EpsilonMin',0.05, 'EpsilonDecay',1e-4);
+actorNetwork = [
+    featureInputLayer(prod(obsInfo.Dimension),Name="state")
+    fullyConnectedLayer(64,Name="fc1")
+    reluLayer(Name="relu1")
+    fullyConnectedLayer(64,Name="fc2")
+    reluLayer(Name="relu2")
+    fullyConnectedLayer(prod(actInfo.Dimension),Name="action")
+    tanhLayer(Name="tanh1")
+    scalingLayer(Scale=[360;0.45], Bias=[0;0.55], Name="scale")  
+    ];
 
-agentOpts = rlDQNAgentOptions( ...
-    'SampleTime',1, ...
-    'DiscountFactor',0.99, ...
-    'MiniBatchSize',32, ...
-    'ExperienceBufferLength',1e4, ...
-    'TargetUpdateFrequency',4, ...
-    'EpsilonGreedyExploration',egOpts ...
-);
-agent = rlDQNAgent(qRepresentation, agentOpts);
+actor = rlDeterministicActorRepresentation(actorNetwork, ...
+    obsInfo, actInfo, ObservationInputNames="state", ActionOutputNames="action");
 
-% Training options
-tOpts = rlTrainingOptions( ...
-    'MaxEpisodes',500, ...
-    'MaxStepsPerEpisode',1, ...
-    'ScoreAveragingWindowLength',20, ...
-    'Plots','training-progress', ...
-    'Verbose',false ...
-);
+agentOpts = rlDDPGAgentOptions(...
+    SampleTime=1, ...
+    DiscountFactor=0.99, ...
+    MiniBatchSize=64);
 
-% Train and save
-tStats = train(agent, env, tOpts);
-save('BeamformingAgent.mat','agent','tStats');
+agent = rlDDPGAgent(actor, critic, agentOpts);
+trainOpts = rlTrainingOptions(...
+    MaxEpisodes=250, ...
+    MaxStepsPerEpisode=1, ...
+    ScoreAveragingWindowLength=20, ...
+    Plots="training-progress", ...
+    Verbose=false);
+
+trainingStats = train(agent, env, trainOpts);
+save("BeamformingAgent.mat","agent");
