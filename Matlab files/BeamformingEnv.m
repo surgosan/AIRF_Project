@@ -13,7 +13,7 @@ classdef BeamformingEnv < rl.env.MATLABEnvironment
         function this = BeamformingEnv(elementPattern)
             ObservationInfo = rlNumericSpec(size(elementPattern));
             ObservationInfo.Name = 'gainPattern';
-            ActionInfo = rlFiniteSetSpec(0:36:360);
+            ActionInfo = rlFiniteSetSpec(0:10:360);
             ActionInfo.Name = 'phaseShift';
             this = this@rl.env.MATLABEnvironment(ObservationInfo, ActionInfo);
             this.ElementPattern = elementPattern;
@@ -22,10 +22,16 @@ classdef BeamformingEnv < rl.env.MATLABEnvironment
 
         function [Observation, Reward, IsDone, LoggedSignals] = step(this, Action)
             currentPattern = computePattern(this.ElementPattern, Action);
-            rTarget = pathLoss(this.Node, currentPattern) + ...
-                      sum(isCollision(this.Node, this.Losses),1) + this.Pt;
+            rTarget = pathLoss(this.Node, currentPattern);
+            lossPenalty = 0;
+            for k = 1:size(this.Losses,1)
+                lossPenalty = lossPenalty + ...
+                              isCollision(this.Node, this.Losses(k,:));
+            end
+
+            rTotal = rTarget + lossPenalty + this.Pt;
             powerUse = Action/360;
-            Reward = rTarget - 0.1*powerUse;
+            Reward = rTotal - 0.1*powerUse;
             Observation = currentPattern;
             IsDone = true;
             LoggedSignals = [];
